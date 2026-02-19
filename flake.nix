@@ -259,7 +259,7 @@ RANS_EOF
               cp "$header" "$target_dir/" 2>/dev/null || true
             done
 
-            # Create basic O2Config.cmake
+            # Create enhanced O2Config.cmake with all required targets
             cat > $out/lib/cmake/O2/O2Config.cmake << 'EOF'
 # O2 Framework CMake Configuration
 set(O2_FOUND TRUE)
@@ -274,7 +274,24 @@ if(NOT TARGET O2::O2)
   target_link_directories(O2::O2 INTERFACE "$''${O2_LIBRARIES}")
 endif()
 
-message(STATUS "Found O2 Framework: $''${O2_VERSION}")
+# Create O2::Framework target (required by O2Physics)
+if(NOT TARGET O2::Framework)
+  add_library(O2::Framework INTERFACE IMPORTED)
+  target_include_directories(O2::Framework INTERFACE "$''${O2_INCLUDE_DIRS}")
+  target_link_directories(O2::Framework INTERFACE "$''${O2_LIBRARIES}")
+endif()
+
+# Create other commonly needed O2 targets
+set(O2_COMMON_TARGETS "DataFormatsParameters;CommonDataFormat;DetectorsBase;Algorithm")
+foreach(target_name IN LISTS O2_COMMON_TARGETS)
+  if(NOT TARGET "O2::$''${target_name}")
+    add_library("O2::$''${target_name}" INTERFACE IMPORTED)
+    target_include_directories("O2::$''${target_name}" INTERFACE "$''${O2_INCLUDE_DIRS}")
+    target_link_directories("O2::$''${target_name}" INTERFACE "$''${O2_LIBRARIES}")
+  endif()
+endforeach()
+
+message(STATUS "Found O2 Framework: $''${O2_VERSION} with targets")
 EOF
 
             echo "O2 framework installation completed with CMake config"

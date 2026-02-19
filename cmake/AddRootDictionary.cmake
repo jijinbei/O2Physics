@@ -122,6 +122,10 @@ function(add_root_dictionary target)
   # Build the LD_LIBRARY_PATH required to get rootcling running fine
   #
   # Need at least root core library
+  # Fix for Nix environment: ensure ROOT_Core_LIBRARY is set
+  if(NOT ROOT_Core_LIBRARY)
+    find_library(ROOT_Core_LIBRARY NAMES libCore.so libCore.dylib PATHS $ENV{ROOTSYS}/lib NO_DEFAULT_PATH)
+  endif()
   get_filename_component(LD_LIBRARY_PATH ${ROOT_Core_LIBRARY} DIRECTORY)
   # and possibly toolchain libs if we are using a toolchain
   if(DEFINED ENV{GCC_TOOLCHAIN_ROOT})
