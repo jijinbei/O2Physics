@@ -84,6 +84,68 @@
           doCheck = false;
         };
 
+        # FairLogger package
+        fairlogger = pkgs.stdenv.mkDerivation rec {
+          pname = "fairlogger";
+          version = "2.3.1";
+
+          src = pkgs.fetchFromGitHub {
+            owner = "FairRootGroup";
+            repo = "FairLogger";
+            rev = "v${version}";
+            sha256 = "sha256-eK2gBVO7+WEd4v1LmgNTs+vYLFaqT8wkgPssqFBOL3w=";
+          };
+
+          nativeBuildInputs = with pkgs; [
+            cmake
+            ninja
+            pkg-config
+          ];
+
+          buildInputs = with pkgs; [
+            boost
+            fmt
+          ];
+
+          cmakeFlags = [
+            "-DCMAKE_BUILD_TYPE=Release"
+            "-DBUILD_TESTING=OFF"
+            "-DCMAKE_INSTALL_PREFIX=${placeholder "out"}"
+          ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
+            "-DCMAKE_LINKER=${pkgs.lld}/bin/ld.lld"
+          ];
+        };
+
+        # VMC (Virtual Monte Carlo) package
+        vmc = pkgs.stdenv.mkDerivation rec {
+          pname = "vmc";
+          version = "2-1";
+
+          src = pkgs.fetchFromGitHub {
+            owner = "vmc-project";
+            repo = "vmc";
+            rev = "v${version}";
+            sha256 = "sha256-1bqQNCwcc6j+ATOaPKwmGefxAaP732bcbph69JdBnHM=";
+          };
+
+          nativeBuildInputs = with pkgs; [
+            cmake
+            ninja
+          ];
+
+          buildInputs = with pkgs; [
+            root
+          ];
+
+          cmakeFlags = [
+            "-DCMAKE_BUILD_TYPE=Release"
+            "-DCMAKE_INSTALL_PREFIX=${placeholder "out"}"
+            "-DROOT_DIR=${pkgs.root}"
+          ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
+            "-DCMAKE_LINKER=${pkgs.lld}/bin/ld.lld"
+          ];
+        };
+
         # KFParticle package
         kfparticle = pkgs.stdenv.mkDerivation rec {
           pname = "kfparticle";
@@ -313,7 +375,7 @@
       in
       {
         packages = {
-          inherit o2 kfparticle fjcontrib;
+          inherit o2 kfparticle fjcontrib fairlogger vmc;
         };
 
         devShells.default = devShell;
