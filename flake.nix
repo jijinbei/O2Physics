@@ -3,13 +3,24 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    # Older nixpkgs for cmake 3.22.3 (compatible with FairRoot)
+    nixpkgs-cmake322 = {
+      url = "github:NixOS/nixpkgs/nixos-22.05";
+      flake = false;
+    };
     flake-utils.url = "github:numtide/flake-utils";
   };
 
-  outputs = { self, nixpkgs, flake-utils }:
+  outputs = { self, nixpkgs, nixpkgs-cmake322, flake-utils }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = import nixpkgs {
+          inherit system;
+          config.allowUnfree = true;
+        };
+
+        # Import older nixpkgs for cmake 3.22.3
+        pkgs-cmake322 = import nixpkgs-cmake322 {
           inherit system;
           config.allowUnfree = true;
         };
@@ -189,45 +200,142 @@
           ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
             "-DCMAKE_LINKER=${pkgs.lld}/bin/ld.lld"
           ];
+
+          # Fix CMakeConfig.cmake file path issues
+          postInstall = ''
+            # Fix the incorrect path concatenation in VMCConfig.cmake
+            for config_file in $out/lib/VMC-*/VMCConfig.cmake; do
+              if [ -f "$config_file" ]; then
+                echo "Fixing VMCConfig.cmake path issues in $config_file"
+                # Replace the problematic include line with relative path
+                sed -i '/include.*VMCTargets.cmake/c\include("''${CMAKE_CURRENT_LIST_DIR}/VMCTargets.cmake")' "$config_file"
+              fi
+            done
+          '';
         };
 
-        # FairRoot package - stub implementation due to CMake compatibility issues
-        # TODO: Fix Get_Filename_Component and other CMake issues for full build
+        # FairRoot package - using ALICE's fork as per alibuild
         fairroot = pkgs.stdenv.mkDerivation rec {
           pname = "fairroot";
-          version = "18.4.9-stub";
+          version = "18.4.9-alice3";  # Use exact alibuild version
 
-          # Create stub package until CMake issues are resolved
-          phases = [ "installPhase" ];
+          src = pkgs.fetchFromGitHub {
+            owner = "alisw";  # Use ALICE's fork, not upstream
+            repo = "FairRoot";
+            rev = "v${version}";
+            sha256 = "sha256-R9y+ZYvEQ+JdrCefYpukaRmcOiDekVzM+u808z6RiFk=";
+          };
 
-          installPhase = ''
-            mkdir -p $out/lib $out/include/fairroot $out/share/cmake/FairRoot
+          nativeBuildInputs = with pkgs; [
+            # Use older CMake for compatibility with FairRoot's CheckCompiler.cmake
+            pkgs-cmake322.cmake  # CMake 3.22.3 from nixos-22.05
+            ninja
+            pkg-config
+          ];
 
-            # Create minimal headers
-            cat > $out/include/fairroot/FairRootManager.h << 'EOF'
-            #pragma once
-            class FairRootManager {
-            public:
-              static FairRootManager* Instance();
-            };
-            EOF
+          buildInputs = with pkgs; [
+            root
+            boost
+            vmc
+            fairlogger
+            faircmakemodules
+            fairmq
+            fmt
+            yaml-cpp
+            protobuf
+            msgpack-cxx
+            flatbuffers
+            microsoft-gsl
+            hdf5
+            zeromq
+            gsl  # GNU Scientific Library
+          ];
 
-            cat > $out/include/fairroot/FairRunAna.h << 'EOF'
-            #pragma once
-            class FairRunAna {
-            public:
-              static FairRunAna* Instance();
-            };
-            EOF
+          # Fix CMake syntax issues with postPatch
+          postPatch = ''
+            # Fix Get_Filename_Component multiline issue in CheckCompiler.cmake
+            if [ -f cmake/modules/CheckCompiler.cmake ]; then
+              echo "Fixing multiline Get_Filename_Component in CheckCompiler.cmake"
+              # Replace with modern cmake_path syntax
+              sed -i '207,209c\      cmake_path(GET FORTRAN_LIBDIR PARENT_PATH FORTRAN_LIBDIR)' cmake/modules/CheckCompiler.cmake
+              echo "Fixed! Checking result:"
+              grep -n -A1 -B1 "Get_Filename_Component.*FORTRAN_LIBDIR" cmake/modules/CheckCompiler.cmake || echo "Pattern not found"
+            fi
 
-            # Create minimal CMake config
-            cat > $out/share/cmake/FairRoot/FairRootConfig.cmake << 'EOF'
-            set(FairRoot_VERSION ${version})
-            set(FairRoot_INCLUDE_DIRS "$out/include")
-            set(FairRoot_LIBRARIES "")
-            EOF
+            # Fix VMCLibrary target issue in main CMakeLists.txt
+            if [ -f CMakeLists.txt ]; then
+              echo "Fixing VMCLibrary target property check"
+              # Replace the problematic get_target_property call for VMC
+              sed -i '497c\      set(vmc_include "${vmc}/include")' CMakeLists.txt
+              sed -i '498c\      set(prefix "${vmc}")' CMakeLists.txt
+            fi
+          '';
 
-            echo "FairRoot stub package (v18.4.9 - CMake compatibility issues)" > $out/lib/README
+          # FairRoot needs to find ROOT and other dependencies
+          preConfigure = ''
+            # Critical: unset SIMPATH as alibuild does
+            unset SIMPATH
+
+            export ROOTSYS=${pkgs.root}
+            export CMAKE_PREFIX_PATH="${faircmakemodules}:${fairlogger}:${fairmq}:${vmc}:$CMAKE_PREFIX_PATH"
+
+            # Set explicit paths as alibuild does
+            export ROOT_CONFIG_SEARCHPATH="${pkgs.root}/bin"
+            export VMC_ROOT="${vmc}"
+          '';
+
+          cmakeFlags = [
+            "-DCMAKE_BUILD_TYPE=Release"
+            "-DCMAKE_INSTALL_PREFIX=${placeholder "out"}"
+            "-DCMAKE_INSTALL_LIBDIR=lib"  # Important: use lib, not lib64
+
+            # ROOT configuration
+            "-DROOTSYS=${pkgs.root}"
+            "-DROOT_CONFIG_SEARCHPATH=${pkgs.root}/bin"
+
+            # Disable components (same as alibuild)
+            "-DBUILD_MBS=OFF"
+            "-DDISABLE_GO=ON"
+            "-DBUILD_EXAMPLES=OFF"
+
+            # Enable modular build
+            "-DFAIRROOT_MODULAR_BUILD=ON"
+
+            # Disable problematic yaml-cpp discovery
+            "-DCMAKE_DISABLE_FIND_PACKAGE_yaml-cpp=ON"
+
+            # Explicit dependency paths
+            "-DBOOST_ROOT=${pkgs.boost}"
+            "-DBoost_NO_SYSTEM_PATHS=ON"
+            "-DGSL_DIR=${pkgs.gsl}"
+            "-DProtobuf_LIBRARY=${pkgs.protobuf}/lib/libprotobuf${pkgs.stdenv.hostPlatform.extensions.sharedLibrary}"
+            "-DProtobuf_LITE_LIBRARY=${pkgs.protobuf}/lib/libprotobuf-lite${pkgs.stdenv.hostPlatform.extensions.sharedLibrary}"
+            "-DProtobuf_PROTOC_LIBRARY=${pkgs.protobuf}/lib/libprotoc${pkgs.stdenv.hostPlatform.extensions.sharedLibrary}"
+            "-DProtobuf_INCLUDE_DIR=${pkgs.protobuf}/include"
+            "-DProtobuf_PROTOC_EXECUTABLE=${pkgs.protobuf}/bin/protoc"
+
+            # Disable Geant for now (as we did earlier)
+            "-DDISABLE_GEANT3=ON"
+            "-DDISABLE_GEANT4=ON"
+            "-DDISABLE_GEANT4VMC=ON"
+
+            # Use different compiler than ROOT
+            "-DUSE_DIFFERENT_COMPILER=ON"
+
+            # Set dependency roots
+            "-DFAIRLOGGER_ROOT=${fairlogger}"
+            "-DVMC_ROOT=${vmc}"
+            "-DFAIRMQ_ROOT=${fairmq}"
+          ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
+            "-DCMAKE_LINKER=${pkgs.lld}/bin/ld.lld"
+          ];
+
+          # Post-install fixes as per alibuild
+          postInstall = ''
+            # Work around hardcoded paths in PCM (as alibuild does)
+            for DIR in source sink field event sim steer; do
+              ln -nfs ../include $out/include/$DIR
+            done
           '';
         };
 
