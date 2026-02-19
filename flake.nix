@@ -73,6 +73,8 @@
             "-DCMAKE_INSTALL_PREFIX=${placeholder "out"}"
             "-DO2_BUILD_FOR_O2PHYSICS=ON"
             "-DENABLE_CASSERT=OFF"
+          ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
+            # Only use LLD on Linux
             "-DCMAKE_LINKER=${pkgs.lld}/bin/ld.lld"
             "-DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=lld"
             "-DCMAKE_SHARED_LINKER_FLAGS=-fuse-ld=lld"
@@ -108,6 +110,7 @@
           cmakeFlags = [
             "-DCMAKE_BUILD_TYPE=Release"
             "-DCMAKE_INSTALL_PREFIX=${placeholder "out"}"
+          ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
             "-DCMAKE_LINKER=${pkgs.lld}/bin/ld.lld"
           ];
         };
@@ -148,10 +151,10 @@
             root
             boost
 
-            # O2Physics dependencies (when built)
-            # o2  # Uncomment after successful build
-            # kfparticle  # Uncomment after successful build
-            # fjcontrib  # Uncomment after successful build
+            # O2Physics dependencies
+            # o2  # Takes long time to build
+            kfparticle
+            fjcontrib
 
             # Python for scripts
             python311
@@ -186,18 +189,28 @@
             export INSTALL_PREFIX="$PWD/install-nix"
             export ALIBUILD_WORK_DIR="$PWD/sw"
 
-            # Compiler and linker configuration for LLD
+            # Compiler and linker configuration
             export CC="${pkgs.clang}/bin/clang"
             export CXX="${pkgs.clang}/bin/clang++"
-            export LD="${pkgs.lld}/bin/ld.lld"
-            export LDFLAGS="-fuse-ld=lld"
+
+            # Platform-specific linker settings
+            if [[ "$OSTYPE" == "darwin"* ]]; then
+              # macOS: Use default ld64 (already parallelized)
+              # No special LDFLAGS needed on macOS
+              echo "🔗 Using macOS ld64 (parallel linking)"
+            else
+              # Linux: Use LLD for faster linking
+              export LD="${pkgs.lld}/bin/ld.lld"
+              export LDFLAGS="-fuse-ld=lld"
+              echo "🔗 Using LLD for fast linking on Linux"
+            fi
 
             # ROOT environment
             export ROOTSYS="${pkgs.root}"
             export ROOT_INCLUDE_PATH="${pkgs.root}/include"
 
             # CMake configuration
-            export CMAKE_PREFIX_PATH="${pkgs.root}:${pkgs.boost}:$CMAKE_PREFIX_PATH"
+            export CMAKE_PREFIX_PATH="${kfparticle}:${fjcontrib}:${pkgs.root}:${pkgs.boost}:$CMAKE_PREFIX_PATH"
 
             # ccache configuration for faster rebuilds
             export CCACHE_DIR="$PWD/.ccache"
@@ -212,23 +225,29 @@
             }
 
             o2p-configure() {
-              echo "⚙️  Configuring build with CMake and LLD..."
+              echo "⚙️  Configuring build with CMake..."
               mkdir -p "$BUILD_DIR"
               cd "$BUILD_DIR"
+
+              # Platform-specific flags
+              local CMAKE_FLAGS=""
+              if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+                CMAKE_FLAGS="-DCMAKE_LINKER=${pkgs.lld}/bin/ld.lld -DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=lld -DCMAKE_SHARED_LINKER_FLAGS=-fuse-ld=lld"
+                echo "  Using LLD linker for faster builds on Linux"
+              fi
+
               cmake .. \
                 -DCMAKE_BUILD_TYPE=''${CMAKE_BUILD_TYPE:-RelWithDebInfo} \
                 -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
                 -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-                -DCMAKE_LINKER="${pkgs.lld}/bin/ld.lld" \
-                -DCMAKE_EXE_LINKER_FLAGS="-fuse-ld=lld" \
-                -DCMAKE_SHARED_LINKER_FLAGS="-fuse-ld=lld" \
+                $CMAKE_FLAGS \
                 -G Ninja \
                 "$@"
               cd - > /dev/null
             }
 
             o2p-build() {
-              echo "🚀 Building O2Physics with LLD..."
+              echo "🚀 Building O2Physics..."
               if [ ! -d "$BUILD_DIR" ]; then
                 echo "Build directory not found. Running o2p-configure first..."
                 o2p-configure
