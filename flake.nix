@@ -264,34 +264,132 @@ RANS_EOF
 # O2 Framework CMake Configuration
 set(O2_FOUND TRUE)
 set(O2_VERSION "dev-2024")
-set(O2_INCLUDE_DIRS "$''${CMAKE_CURRENT_LIST_DIR}/../../include")
-set(O2_LIBRARIES "$''${CMAKE_CURRENT_LIST_DIR}/../../lib")
+set(O2_INCLUDE_DIRS "\''${CMAKE_CURRENT_LIST_DIR}/../../include")
+set(O2_LIBRARIES "\''${CMAKE_CURRENT_LIST_DIR}/../../lib")
 
 # Create basic O2 target
 if(NOT TARGET O2::O2)
   add_library(O2::O2 INTERFACE IMPORTED)
-  target_include_directories(O2::O2 INTERFACE "$''${O2_INCLUDE_DIRS}")
-  target_link_directories(O2::O2 INTERFACE "$''${O2_LIBRARIES}")
+  target_include_directories(O2::O2 INTERFACE "\''${CMAKE_CURRENT_LIST_DIR}/../../include")
 endif()
 
 # Create O2::Framework target (required by O2Physics)
 if(NOT TARGET O2::Framework)
   add_library(O2::Framework INTERFACE IMPORTED)
-  target_include_directories(O2::Framework INTERFACE "$''${O2_INCLUDE_DIRS}")
-  target_link_directories(O2::Framework INTERFACE "$''${O2_LIBRARIES}")
+  target_include_directories(O2::Framework INTERFACE "\''${CMAKE_CURRENT_LIST_DIR}/../../include")
 endif()
 
 # Create other commonly needed O2 targets
-set(O2_COMMON_TARGETS "DataFormatsParameters;CommonDataFormat;DetectorsBase;Algorithm")
-foreach(target_name IN LISTS O2_COMMON_TARGETS)
-  if(NOT TARGET "O2::$''${target_name}")
-    add_library("O2::$''${target_name}" INTERFACE IMPORTED)
-    target_include_directories("O2::$''${target_name}" INTERFACE "$''${O2_INCLUDE_DIRS}")
-    target_link_directories("O2::$''${target_name}" INTERFACE "$''${O2_LIBRARIES}")
-  endif()
-endforeach()
+if(NOT TARGET O2::DataFormatsParameters)
+  add_library(O2::DataFormatsParameters INTERFACE IMPORTED)
+  target_include_directories(O2::DataFormatsParameters INTERFACE "\''${CMAKE_CURRENT_LIST_DIR}/../../include")
+endif()
 
-message(STATUS "Found O2 Framework: $''${O2_VERSION} with targets")
+if(NOT TARGET O2::CommonDataFormat)
+  add_library(O2::CommonDataFormat INTERFACE IMPORTED)
+  target_include_directories(O2::CommonDataFormat INTERFACE "\''${CMAKE_CURRENT_LIST_DIR}/../../include")
+endif()
+
+if(NOT TARGET O2::DetectorsBase)
+  add_library(O2::DetectorsBase INTERFACE IMPORTED)
+  target_include_directories(O2::DetectorsBase INTERFACE "\''${CMAKE_CURRENT_LIST_DIR}/../../include")
+endif()
+
+if(NOT TARGET O2::Algorithm)
+  add_library(O2::Algorithm INTERFACE IMPORTED)
+  target_include_directories(O2::Algorithm INTERFACE "\''${CMAKE_CURRENT_LIST_DIR}/../../include")
+endif()
+
+# Analysis Support targets
+if(NOT TARGET O2::FrameworkAnalysisSupport)
+  add_library(O2::FrameworkAnalysisSupport INTERFACE IMPORTED)
+  target_include_directories(O2::FrameworkAnalysisSupport INTERFACE "\''${CMAKE_CURRENT_LIST_DIR}/../../include")
+endif()
+
+# Data format targets
+if(NOT TARGET O2::ReconstructionDataFormats)
+  add_library(O2::ReconstructionDataFormats INTERFACE IMPORTED)
+  target_include_directories(O2::ReconstructionDataFormats INTERFACE "\''${CMAKE_CURRENT_LIST_DIR}/../../include")
+endif()
+
+# Global tracking targets
+if(NOT TARGET O2::GlobalTracking)
+  add_library(O2::GlobalTracking INTERFACE IMPORTED)
+  target_include_directories(O2::GlobalTracking INTERFACE "\''${CMAKE_CURRENT_LIST_DIR}/../../include")
+endif()
+
+# Detector-specific targets
+if(NOT TARGET O2::EMCALBase)
+  add_library(O2::EMCALBase INTERFACE IMPORTED)
+  target_include_directories(O2::EMCALBase INTERFACE "\''${CMAKE_CURRENT_LIST_DIR}/../../include")
+endif()
+
+if(NOT TARGET O2::TPCBase)
+  add_library(O2::TPCBase INTERFACE IMPORTED)
+  target_include_directories(O2::TPCBase INTERFACE "\''${CMAKE_CURRENT_LIST_DIR}/../../include")
+endif()
+
+if(NOT TARGET O2::ITSBase)
+  add_library(O2::ITSBase INTERFACE IMPORTED)
+  target_include_directories(O2::ITSBase INTERFACE "\''${CMAKE_CURRENT_LIST_DIR}/../../include")
+endif()
+
+if(NOT TARGET O2::TOFBase)
+  add_library(O2::TOFBase INTERFACE IMPORTED)
+  target_include_directories(O2::TOFBase INTERFACE "\''${CMAKE_CURRENT_LIST_DIR}/../../include")
+endif()
+
+if(NOT TARGET O2::MUONBase)
+  add_library(O2::MUONBase INTERFACE IMPORTED)
+  target_include_directories(O2::MUONBase INTERFACE "\''${CMAKE_CURRENT_LIST_DIR}/../../include")
+endif()
+
+if(NOT TARGET O2::MFTBase)
+  add_library(O2::MFTBase INTERFACE IMPORTED)
+  target_include_directories(O2::MFTBase INTERFACE "\''${CMAKE_CURRENT_LIST_DIR}/../../include")
+endif()
+
+if(NOT TARGET O2::MCHBase)
+  add_library(O2::MCHBase INTERFACE IMPORTED)
+  target_include_directories(O2::MCHBase INTERFACE "\''${CMAKE_CURRENT_LIST_DIR}/../../include")
+endif()
+
+if(NOT TARGET O2::MIDBase)
+  add_library(O2::MIDBase INTERFACE IMPORTED)
+  target_include_directories(O2::MIDBase INTERFACE "\''${CMAKE_CURRENT_LIST_DIR}/../../include")
+endif()
+
+if(NOT TARGET O2::PHOSBase)
+  add_library(O2::PHOSBase INTERFACE IMPORTED)
+  target_include_directories(O2::PHOSBase INTERFACE "\''${CMAKE_CURRENT_LIST_DIR}/../../include")
+endif()
+
+if(NOT TARGET O2::CPVBase)
+  add_library(O2::CPVBase INTERFACE IMPORTED)
+  target_include_directories(O2::CPVBase INTERFACE "\''${CMAKE_CURRENT_LIST_DIR}/../../include")
+endif()
+
+if(NOT TARGET O2::ZDCBase)
+  add_library(O2::ZDCBase INTERFACE IMPORTED)
+  target_include_directories(O2::ZDCBase INTERFACE "\''${CMAKE_CURRENT_LIST_DIR}/../../include")
+endif()
+
+if(NOT TARGET O2::FT0Base)
+  add_library(O2::FT0Base INTERFACE IMPORTED)
+  target_include_directories(O2::FT0Base INTERFACE "\''${CMAKE_CURRENT_LIST_DIR}/../../include")
+endif()
+
+if(NOT TARGET O2::FV0Base)
+  add_library(O2::FV0Base INTERFACE IMPORTED)
+  target_include_directories(O2::FV0Base INTERFACE "\''${CMAKE_CURRENT_LIST_DIR}/../../include")
+endif()
+
+if(NOT TARGET O2::FDDBase)
+  add_library(O2::FDDBase INTERFACE IMPORTED)
+  target_include_directories(O2::FDDBase INTERFACE "\''${CMAKE_CURRENT_LIST_DIR}/../../include")
+endif()
+
+message(STATUS "Found O2 Framework: \''${O2_VERSION} with targets")
 EOF
 
             echo "O2 framework installation completed with CMake config"
