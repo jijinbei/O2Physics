@@ -38,6 +38,12 @@
             root
             boost
 
+            # O2 Framework dependencies
+            fairroot
+            fairmq
+            fairlogger
+            vmc
+
             # Arrow and data processing
             arrow-cpp
 
@@ -84,36 +90,60 @@
           doCheck = false;
         };
 
-        # FairLogger package
-        fairlogger = pkgs.stdenv.mkDerivation rec {
-          pname = "fairlogger";
-          version = "2.3.1";
+        # FairCMakeModules package
+        faircmakemodules = pkgs.stdenv.mkDerivation rec {
+          pname = "faircmakemodules";
+          version = "1.0.0";
 
           src = pkgs.fetchFromGitHub {
             owner = "FairRootGroup";
-            repo = "FairLogger";
+            repo = "FairCMakeModules";
             rev = "v${version}";
-            sha256 = "sha256-eK2gBVO7+WEd4v1LmgNTs+vYLFaqT8wkgPssqFBOL3w=";
+            sha256 = "sha256-nAy2FTeLuqaaUTXZfB9WkIzBNKEhx36wjqSiBQKZ7Og=";
           };
 
           nativeBuildInputs = with pkgs; [
             cmake
-            ninja
-            pkg-config
-          ];
-
-          buildInputs = with pkgs; [
-            boost
-            fmt
           ];
 
           cmakeFlags = [
-            "-DCMAKE_BUILD_TYPE=Release"
-            "-DBUILD_TESTING=OFF"
             "-DCMAKE_INSTALL_PREFIX=${placeholder "out"}"
-          ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
-            "-DCMAKE_LINKER=${pkgs.lld}/bin/ld.lld"
           ];
+        };
+
+        # FairLogger package - stub for now
+        # TODO: Fix version reporting and path issues
+        fairlogger = pkgs.stdenv.mkDerivation rec {
+          pname = "fairlogger";
+          version = "1.11.1-stub";
+
+          # Create stub package until path issues are resolved
+          phases = [ "installPhase" ];
+
+          installPhase = ''
+            mkdir -p $out/lib $out/include/fairlogger $out/share/cmake/FairLogger
+
+            # Create minimal headers
+            cat > $out/include/fairlogger/Logger.h << 'EOF'
+            #pragma once
+            namespace fair {
+              class Logger {
+              public:
+                static void SetConsoleSeverity(const char* severity);
+              };
+            }
+            EOF
+
+            # Create minimal CMake config
+            cat > $out/share/cmake/FairLogger/FairLoggerConfig.cmake << 'EOF'
+            set(FairLogger_VERSION ${version})
+            set(FairLogger_INCLUDE_DIRS "$out/include")
+            set(FairLogger_LIBRARIES "")
+            set(FAIRLOGGER_VERSION ${version})
+            EOF
+
+            echo "FairLogger stub package (version/path issues)" > $out/lib/README
+          '';
         };
 
         # VMC (Virtual Monte Carlo) package
@@ -144,6 +174,67 @@
           ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
             "-DCMAKE_LINKER=${pkgs.lld}/bin/ld.lld"
           ];
+        };
+
+        # FairRoot package - stub for now due to build issues
+        # TODO: Fix CMake compatibility issues (Get_Filename_Component error)
+        fairroot = pkgs.stdenv.mkDerivation rec {
+          pname = "fairroot";
+          version = "19.0.0-stub";
+
+          # Create stub package until CMake issues are resolved
+          phases = [ "installPhase" ];
+
+          installPhase = ''
+            mkdir -p $out/lib $out/include/fairroot $out/share/cmake/FairRoot
+
+            # Create minimal headers
+            cat > $out/include/fairroot/FairRootManager.h << 'EOF'
+            #pragma once
+            class FairRootManager {
+            public:
+              static FairRootManager* Instance();
+            };
+            EOF
+
+            # Create minimal CMake config
+            cat > $out/share/cmake/FairRoot/FairRootConfig.cmake << 'EOF'
+            set(FairRoot_VERSION ${version})
+            set(FairRoot_INCLUDE_DIRS "$out/include")
+            set(FairRoot_LIBRARIES "")
+            EOF
+
+            echo "FairRoot stub package (CMake compatibility issues)" > $out/lib/README
+          '';
+        };
+
+        # FairMQ package - simplified stub for now
+        # TODO: Fix FairLogger version issue and build full FairMQ
+        fairmq = pkgs.stdenv.mkDerivation rec {
+          pname = "fairmq";
+          version = "1.8.4-stub";
+
+          # Create stub package until FairLogger version issue is resolved
+          phases = [ "installPhase" ];
+
+          installPhase = ''
+            mkdir -p $out/lib $out/include/fairmq $out/share/cmake/FairMQ
+
+            # Create minimal headers
+            cat > $out/include/fairmq/FairMQDevice.h << 'EOF'
+            #pragma once
+            namespace fair { namespace mq { class Device {}; } }
+            EOF
+
+            # Create minimal CMake config
+            cat > $out/share/cmake/FairMQ/FairMQConfig.cmake << 'EOF'
+            set(FairMQ_VERSION ${version})
+            set(FairMQ_INCLUDE_DIRS "$out/include")
+            set(FairMQ_LIBRARIES "")
+            EOF
+
+            echo "FairMQ stub package (version issue with FairLogger)" > $out/lib/README
+          '';
         };
 
         # KFParticle package
@@ -272,7 +363,7 @@
             export ROOT_INCLUDE_PATH="${pkgs.root}/include"
 
             # CMake configuration
-            export CMAKE_PREFIX_PATH="${kfparticle}:${fjcontrib}:${pkgs.root}:${pkgs.boost}:$CMAKE_PREFIX_PATH"
+            export CMAKE_PREFIX_PATH="${kfparticle}:${fjcontrib}:${fairroot}:${fairmq}:${fairlogger}:${vmc}:${pkgs.root}:${pkgs.boost}:$CMAKE_PREFIX_PATH"
 
             # ccache configuration for faster rebuilds
             export CCACHE_DIR="$PWD/.ccache"
@@ -354,6 +445,14 @@
               fi
             }
 
+            # Export functions to be available
+            export -f o2p-init
+            export -f o2p-configure
+            export -f o2p-build
+            export -f o2p-clean
+            export -f o2p-test
+            export -f o2p-doctor
+
             # Aliases for compatibility
             alias alibuild="echo 'Use o2p-build instead (alibuild replaced by Nix)'"
             alias alienv="echo 'Already in Nix environment (no alienv needed)'"
@@ -375,7 +474,7 @@
       in
       {
         packages = {
-          inherit o2 kfparticle fjcontrib fairlogger vmc;
+          inherit o2 kfparticle fjcontrib faircmakemodules fairlogger vmc fairroot fairmq;
         };
 
         devShells.default = devShell;
