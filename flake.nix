@@ -111,38 +111,53 @@
           ];
         };
 
-        # FairLogger package - stub for now
-        # TODO: Fix version reporting and path issues
+        # FairLogger package
         fairlogger = pkgs.stdenv.mkDerivation rec {
           pname = "fairlogger";
-          version = "1.11.1-stub";
+          version = "2.3.1";  # Use same version as alibuild
 
-          # Create stub package until path issues are resolved
-          phases = [ "installPhase" ];
+          src = pkgs.fetchFromGitHub {
+            owner = "FairRootGroup";
+            repo = "FairLogger";
+            rev = "v${version}";
+            sha256 = "sha256-eK2gBVO7+WEd4v1LmgNTs+vYLFaqT8wkgPssqFBOL3w=";
+          };
 
-          installPhase = ''
-            mkdir -p $out/lib $out/include/fairlogger $out/share/cmake/FairLogger
+          nativeBuildInputs = with pkgs; [
+            cmake
+            ninja
+            pkg-config
+          ];
 
-            # Create minimal headers
-            cat > $out/include/fairlogger/Logger.h << 'EOF'
-            #pragma once
-            namespace fair {
-              class Logger {
-              public:
-                static void SetConsoleSeverity(const char* severity);
-              };
-            }
-            EOF
+          buildInputs = with pkgs; [
+            boost
+            fmt
+          ];
 
-            # Create minimal CMake config
-            cat > $out/share/cmake/FairLogger/FairLoggerConfig.cmake << 'EOF'
-            set(FairLogger_VERSION ${version})
-            set(FairLogger_INCLUDE_DIRS "$out/include")
-            set(FairLogger_LIBRARIES "")
-            set(FAIRLOGGER_VERSION ${version})
-            EOF
+          cmakeFlags = [
+            "-DCMAKE_BUILD_TYPE=Release"
+            "-DBUILD_TESTING=OFF"
+            "-DCMAKE_INSTALL_PREFIX=${placeholder "out"}"
+            # Key flags from alibuild recipe
+            "-DPROJECT_GIT_VERSION=${version}"  # Set proper version
+            "-DDISABLE_COLOR=ON"  # Disable color output
+            "-DUSE_EXTERNAL_FMT=ON"  # Use external fmt library
+          ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
+            "-DCMAKE_LINKER=${pkgs.lld}/bin/ld.lld"
+          ];
 
-            echo "FairLogger stub package (version/path issues)" > $out/lib/README
+          # Fix paths in CMake config files
+          postInstall = ''
+            # Fix double path issue in FairLoggerConfig.cmake
+            for file in $out/lib/cmake/FairLogger-*/FairLoggerConfig.cmake; do
+              if [ -f "$file" ]; then
+                # Remove the extra nix store path from all path variables
+                sed -i "s|\''${PACKAGE_PREFIX_DIR}/$out|\''${PACKAGE_PREFIX_DIR}|g" "$file"
+                # Also fix the version that's reported as 0.0.0.0
+                sed -i "s|set(FairLogger_VERSION 0.0.0.0)|set(FairLogger_VERSION ${version})|g" "$file"
+                sed -i "s|set(FairLogger_GIT_VERSION 0.0.0.0)|set(FairLogger_GIT_VERSION ${version})|g" "$file"
+              fi
+            done
           '';
         };
 
@@ -176,65 +191,131 @@
           ];
         };
 
-        # FairRoot package - stub for now due to build issues
-        # TODO: Fix CMake compatibility issues (Get_Filename_Component error)
+        # FairRoot package
         fairroot = pkgs.stdenv.mkDerivation rec {
           pname = "fairroot";
-          version = "19.0.0-stub";
+          version = "18.4.9";  # Use alibuild version
 
-          # Create stub package until CMake issues are resolved
-          phases = [ "installPhase" ];
+          src = pkgs.fetchFromGitHub {
+            owner = "FairRootGroup";
+            repo = "FairRoot";
+            rev = "v${version}";
+            sha256 = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";  # Will be updated
+          };
 
-          installPhase = ''
-            mkdir -p $out/lib $out/include/fairroot $out/share/cmake/FairRoot
+          nativeBuildInputs = with pkgs; [
+            cmake
+            ninja
+            pkg-config
+          ];
 
-            # Create minimal headers
-            cat > $out/include/fairroot/FairRootManager.h << 'EOF'
-            #pragma once
-            class FairRootManager {
-            public:
-              static FairRootManager* Instance();
-            };
-            EOF
+          buildInputs = with pkgs; [
+            root
+            boost
+            vmc
+            fairlogger
+            faircmakemodules
+            fairmq
+            fmt
+            yaml-cpp
+            protobuf
+            msgpack-cxx
+            flatbuffers
+            microsoft-gsl
+            hdf5
+            zeromq
+          ];
 
-            # Create minimal CMake config
-            cat > $out/share/cmake/FairRoot/FairRootConfig.cmake << 'EOF'
-            set(FairRoot_VERSION ${version})
-            set(FairRoot_INCLUDE_DIRS "$out/include")
-            set(FairRoot_LIBRARIES "")
-            EOF
-
-            echo "FairRoot stub package (CMake compatibility issues)" > $out/lib/README
+          # FairRoot needs to find ROOT and other dependencies
+          preConfigure = ''
+            export ROOTSYS=${pkgs.root}
+            export CMAKE_PREFIX_PATH="${faircmakemodules}:${fairlogger}:${fairmq}:${vmc}:$CMAKE_PREFIX_PATH"
+            # Unset SIMPATH to avoid potential hardcoded path issues (as per alibuild)
+            unset SIMPATH
           '';
+
+          cmakeFlags = [
+            "-DCMAKE_BUILD_TYPE=Release"
+            "-DBUILD_EXAMPLES=OFF"
+            "-DBUILD_TESTING=OFF"
+            "-DCMAKE_INSTALL_PREFIX=${placeholder "out"}"
+            "-DUSE_DIFFERENT_COMPILER=ON"  # Allow different compiler than ROOT
+            # Disable components we don't need (as per alibuild)
+            "-DDISABLE_GO=ON"
+            "-DDISABLE_MBS=ON"
+            "-DDISABLE_GEANT3=ON"  # Skip Geant3
+            "-DDISABLE_GEANT4=ON"  # Skip Geant4
+            "-DDISABLE_GEANT4VMC=ON"
+            # Enable modular build
+            "-DFAIRROOT_MODULAR_BUILD=ON"
+            # Set dependency roots
+            "-DFAIRLOGGER_ROOT=${fairlogger}"
+            "-DVMC_ROOT=${vmc}"
+            "-DFAIRMQ_ROOT=${fairmq}"
+          ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
+            "-DCMAKE_LINKER=${pkgs.lld}/bin/ld.lld"
+          ];
         };
 
-        # FairMQ package - simplified stub for now
-        # TODO: Fix FairLogger version issue and build full FairMQ
+        # PicoSHA2 header-only library
+        picosha2-header = pkgs.fetchurl {
+          url = "https://raw.githubusercontent.com/okdshin/PicoSHA2/b699e6c900be6e00152db5a3d123c1db42ea13d0/picosha2.h";
+          sha256 = "sha256-nfelaW83mB91rRt4VMyDMXauSN6/PuS/wCT+nfyLhiQ=";
+        };
+
+        # FairMQ package
         fairmq = pkgs.stdenv.mkDerivation rec {
           pname = "fairmq";
-          version = "1.8.4-stub";
+          version = "1.10.1";  # Use same version as alibuild
 
-          # Create stub package until FairLogger version issue is resolved
-          phases = [ "installPhase" ];
+          src = pkgs.fetchFromGitHub {
+            owner = "FairRootGroup";
+            repo = "FairMQ";
+            rev = "v${version}";
+            sha256 = "sha256-rah76wKmAV/4lJLqdB1WAd1WR6Qq+Up6gR2hQiGzzJc=";
+          };
 
-          installPhase = ''
-            mkdir -p $out/lib $out/include/fairmq $out/share/cmake/FairMQ
+          nativeBuildInputs = with pkgs; [
+            cmake
+            ninja
+            pkg-config
+          ];
 
-            # Create minimal headers
-            cat > $out/include/fairmq/FairMQDevice.h << 'EOF'
-            #pragma once
-            namespace fair { namespace mq { class Device {}; } }
-            EOF
+          buildInputs = with pkgs; [
+            boost
+            fairlogger
+            faircmakemodules
+            zeromq
+            msgpack-cxx
+            flatbuffers
+            asio
+            fmt  # Required by FairLogger
+          ];
 
-            # Create minimal CMake config
-            cat > $out/share/cmake/FairMQ/FairMQConfig.cmake << 'EOF'
-            set(FairMQ_VERSION ${version})
-            set(FairMQ_INCLUDE_DIRS "$out/include")
-            set(FairMQ_LIBRARIES "")
-            EOF
+          # FairMQ needs to find FairLogger properly
+          preConfigure = ''
+            export CMAKE_PREFIX_PATH="${fairlogger}:${faircmakemodules}:$CMAKE_PREFIX_PATH"
 
-            echo "FairMQ stub package (version issue with FairLogger)" > $out/lib/README
+            # Setup PicoSHA2 header-only library
+            mkdir -p include
+            cp ${picosha2-header} include/picosha2.h
+            export PicoSHA2_INCLUDE_DIR="$PWD/include"
+            export CMAKE_INCLUDE_PATH="$PWD/include:$CMAKE_INCLUDE_PATH"
           '';
+
+          cmakeFlags = [
+            "-DCMAKE_BUILD_TYPE=Release"
+            "-DBUILD_TESTING=OFF"
+            "-DBUILD_EXAMPLES=OFF"  # Skip examples as per alibuild
+            "-DCMAKE_INSTALL_PREFIX=${placeholder "out"}"
+            "-DDISABLE_COLOR=ON"  # Disable color output
+            "-DFAIRLOGGER_ROOT=${fairlogger}"
+            "-DFairCMakeModules_ROOT=${faircmakemodules}"
+            "-DBUILD_OFI_TRANSPORT=OFF"  # Disable OFI transport to avoid PicoSHA2
+            "-DBUILD_NANOMSG_TRANSPORT=OFF"  # Disable nanomsg transport
+          ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
+            "-DCMAKE_LINKER=${pkgs.lld}/bin/ld.lld"
+          ];
         };
 
         # KFParticle package
