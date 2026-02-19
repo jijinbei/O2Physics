@@ -1,5 +1,5 @@
 {
-  description = "O2Physics - ALICE Analysis Framework (Phase 1: Basic Structure)";
+  description = "O2Physics - ALICE Analysis Framework (Phase 2: LLD Optimization)";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -17,12 +17,15 @@
         # Basic development shell
         devShell = pkgs.mkShell {
           buildInputs = with pkgs; [
-            # Compilers and build tools
+            # Compilers and build tools with LLD
             clang
+            lld
+            mold  # Alternative fast linker
             cmake
             ninja
             pkg-config
             gnumake
+            ccache  # Build cache
 
             # Version control
             git
@@ -42,19 +45,38 @@
           ];
 
           shellHook = ''
-            echo "O2Physics Nix Development Environment (Phase 1)"
-            echo "==============================================="
+            echo "O2Physics Nix Development Environment (Phase 2: LLD Optimized)"
+            echo "=============================================================="
             echo ""
 
-            # Basic environment setup
+            # Environment setup
             export BUILD_DIR="$PWD/build-nix"
             export INSTALL_PREFIX="$PWD/install-nix"
 
-            echo "Build directory: $BUILD_DIR"
-            echo "Install prefix: $INSTALL_PREFIX"
+            # Compiler and linker configuration for LLD
+            export CC="${pkgs.clang}/bin/clang"
+            export CXX="${pkgs.clang}/bin/clang++"
+            export LD="${pkgs.lld}/bin/ld.lld"
+            export LDFLAGS="-fuse-ld=lld"
+
+            # ccache configuration for faster rebuilds
+            export CCACHE_DIR="$PWD/.ccache"
+            export CCACHE_MAXSIZE="10G"
+            export PATH="${pkgs.ccache}/bin/ccache:$PATH"
+
+            echo "Build configuration:"
+            echo "  Compiler: $(${pkgs.clang}/bin/clang --version | head -1)"
+            echo "  Linker: LLD (fast linking enabled)"
+            echo "  Build cache: ccache configured"
             echo ""
-            echo "Phase 1: Basic structure established"
-            echo "Next: Add LLD optimization and more dependencies"
+            echo "Environment variables:"
+            echo "  CC=$CC"
+            echo "  CXX=$CXX"
+            echo "  LD=$LD"
+            echo "  BUILD_DIR=$BUILD_DIR"
+            echo ""
+            echo "Phase 2: LLD optimization added"
+            echo "Next: Add development helper functions"
           '';
         };
 
