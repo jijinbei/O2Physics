@@ -1,5 +1,5 @@
 {
-  description = "O2Physics - ALICE Analysis Framework (Phase 3: Development Environment)";
+  description = "O2Physics - ALICE Analysis Framework (Phase 4: O2 Framework)";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -14,7 +14,129 @@
           config.allowUnfree = true;
         };
 
-        # Basic development shell
+        # Custom O2 framework package
+        o2 = pkgs.stdenv.mkDerivation rec {
+          pname = "alice-o2";
+          version = "dev-2024";
+
+          src = pkgs.fetchFromGitHub {
+            owner = "AliceO2Group";
+            repo = "AliceO2";
+            rev = "dev";
+            sha256 = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="; # Will be updated
+          };
+
+          nativeBuildInputs = with pkgs; [
+            cmake
+            ninja
+            pkg-config
+            git
+          ];
+
+          buildInputs = with pkgs; [
+            # Core dependencies
+            root
+            boost
+
+            # Arrow and data processing
+            arrow-cpp
+
+            # Messaging and communication
+            zeromq
+
+            # Serialization and data formats
+            protobuf
+            msgpack-cxx
+            nlohmann_json
+            fmt
+
+            # System libraries
+            openssl
+            curl
+            zlib
+
+            # Graphics (for event display)
+            glfw
+            glew
+
+            # Additional scientific libraries
+            gsl
+
+            # Monitoring and logging
+            prometheus-cpp
+          ];
+
+          cmakeFlags = [
+            "-DCMAKE_BUILD_TYPE=Release"
+            "-DBUILD_SHARED_LIBS=ON"
+            "-DCMAKE_INSTALL_PREFIX=${placeholder "out"}"
+            "-DO2_BUILD_FOR_O2PHYSICS=ON"
+            "-DENABLE_CASSERT=OFF"
+            "-DCMAKE_LINKER=${pkgs.lld}/bin/ld.lld"
+            "-DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=lld"
+            "-DCMAKE_SHARED_LINKER_FLAGS=-fuse-ld=lld"
+          ];
+
+          # Skip tests during build for now
+          doCheck = false;
+        };
+
+        # KFParticle package
+        kfparticle = pkgs.stdenv.mkDerivation rec {
+          pname = "kfparticle";
+          version = "1.3";
+
+          src = pkgs.fetchFromGitHub {
+            owner = "alisw";
+            repo = "KFParticle";
+            rev = "alice/master";
+            sha256 = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="; # Will be updated
+          };
+
+          nativeBuildInputs = with pkgs; [
+            cmake
+            ninja
+            pkg-config
+          ];
+
+          buildInputs = with pkgs; [
+            root
+          ];
+
+          cmakeFlags = [
+            "-DCMAKE_BUILD_TYPE=Release"
+            "-DCMAKE_INSTALL_PREFIX=${placeholder "out"}"
+            "-DCMAKE_LINKER=${pkgs.lld}/bin/ld.lld"
+          ];
+        };
+
+        # fjcontrib package
+        fjcontrib = pkgs.stdenv.mkDerivation rec {
+          pname = "fjcontrib";
+          version = "1.049";
+
+          src = pkgs.fetchurl {
+            url = "http://fastjet.hepforge.org/contrib/downloads/fjcontrib-${version}.tar.gz";
+            sha256 = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="; # Will be updated
+          };
+
+          nativeBuildInputs = with pkgs; [
+            gnumake
+          ];
+
+          buildInputs = with pkgs; [
+            fastjet
+          ];
+
+          configureFlags = [
+            "--fastjet-config=${pkgs.fastjet}/bin/fastjet-config"
+            "LDFLAGS=-fuse-ld=lld"
+          ];
+
+          enableParallelBuilding = true;
+        };
+
+        # Development shell with O2 framework
         devShell = pkgs.mkShell {
           buildInputs = with pkgs; [
             # Compilers and build tools with LLD
@@ -34,19 +156,36 @@
             root
             boost
 
+            # O2Physics dependencies (when built)
+            # o2  # Uncomment after successful build
+            # kfparticle  # Uncomment after successful build
+            # fjcontrib  # Uncomment after successful build
+
             # Python for scripts
             python311
             python311Packages.pip
+
+            # O2 dependencies
+            arrow-cpp
+            zeromq
+            protobuf
+            msgpack-cxx
+            nlohmann_json
+            fmt
+            gsl
+            fastjet  # For fjcontrib
 
             # System libraries
             zlib
             openssl
             curl
+            glfw
+            glew
           ];
 
           shellHook = ''
             echo "╔═══════════════════════════════════════════════════════════╗"
-            echo "║   O2Physics Nix Development Environment (Phase 3: Ready)    ║"
+            echo "║   O2Physics Nix Development Environment (Phase 4: O2)      ║"
             echo "╚═══════════════════════════════════════════════════════════╝"
             echo ""
 
@@ -162,6 +301,10 @@
 
       in
       {
+        packages = {
+          inherit o2 kfparticle fjcontrib;
+        };
+
         devShells.default = devShell;
       });
 }
