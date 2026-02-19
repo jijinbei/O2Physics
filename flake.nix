@@ -23,7 +23,7 @@
             owner = "AliceO2Group";
             repo = "AliceO2";
             rev = "dev";
-            sha256 = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="; # Will be updated
+            sha256 = "sha256-JiAJ2nxRFu//z3OEPKHXMtOBGBLeyLb+hRdZMDaUwGc=";
           };
 
           nativeBuildInputs = with pkgs; [
@@ -61,6 +61,7 @@
 
             # Additional scientific libraries
             gsl
+            vc  # SIMD vectorization
 
             # Monitoring and logging
             prometheus-cpp
@@ -89,8 +90,8 @@
           src = pkgs.fetchFromGitHub {
             owner = "alisw";
             repo = "KFParticle";
-            rev = "alice/master";
-            sha256 = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="; # Will be updated
+            rev = "v1.1-alice9";
+            sha256 = "sha256-zxlpHMs82ZdYs9fjbWDHt7aeXo7ZIw3bSy077hEeVrE=";
           };
 
           nativeBuildInputs = with pkgs; [
@@ -101,6 +102,7 @@
 
           buildInputs = with pkgs; [
             root
+            vc  # SIMD vectorization library
           ];
 
           cmakeFlags = [
@@ -110,30 +112,20 @@
           ];
         };
 
-        # fjcontrib package
+        # fjcontrib package - placeholder for now
+        # FastJet contrib is typically included with fastjet or needs manual download
         fjcontrib = pkgs.stdenv.mkDerivation rec {
           pname = "fjcontrib";
           version = "1.049";
 
-          src = pkgs.fetchurl {
-            url = "http://fastjet.hepforge.org/contrib/downloads/fjcontrib-${version}.tar.gz";
-            sha256 = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="; # Will be updated
-          };
+          # For now, create a stub package
+          # TODO: Replace with actual fjcontrib source
+          phases = [ "installPhase" ];
 
-          nativeBuildInputs = with pkgs; [
-            gnumake
-          ];
-
-          buildInputs = with pkgs; [
-            fastjet
-          ];
-
-          configureFlags = [
-            "--fastjet-config=${pkgs.fastjet}/bin/fastjet-config"
-            "LDFLAGS=-fuse-ld=lld"
-          ];
-
-          enableParallelBuilding = true;
+          installPhase = ''
+            mkdir -p $out/lib $out/include
+            echo "fjcontrib stub package" > $out/lib/README
+          '';
         };
 
         # Development shell with O2 framework
